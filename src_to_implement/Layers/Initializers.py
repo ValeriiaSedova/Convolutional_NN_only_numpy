@@ -13,18 +13,18 @@ class Constant:
 class UniformRandom:
     
     def initialize(self, weight_shape, fan_in, fan_out):
-        init_tensor = np.random.randn(weight_shape)
+        init_tensor = np.random.random(weight_shape)
         return init_tensor
 
 class Xavier:
     def initialize(self, weight_shape, fan_in, fan_out):
-        sigma = np.sqrt(2/(fan_out+fan_in))
-        init_tensor = np.random.randn(weight_shape)*sigma
+        sigma = np.sqrt(2.0/(fan_out+fan_in))
+        init_tensor = np.random.randn(*weight_shape)*sigma
         return init_tensor
 
 class He:
     def initialize(self, weight_shape, fan_in, fan_out):
-        sigma = np.sqrt(2/fan_in)
-        init_tensor = np.random.randn(weight_shape)*sigma
+        sigma = np.sqrt(2.0/fan_in)
+        init_tensor = np.random.randn(*weight_shape)*sigma
         return init_tensor
 

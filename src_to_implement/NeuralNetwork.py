@@ -2,20 +2,21 @@ import copy
 
 class NeuralNetwork:
 
-    def __init__(self, optimizer):
+    def __init__(self, optimizer, weights_initializer, bias_initializer):
         self.optimizer = optimizer
         self.loss = []
         self.layers = []
         self.data_layer = None
         self.loss_layer = None
         self.label_tensor = None
+        self.weights_initializer = weights_initializer
+        self.bias_initializer = bias_initializers
 
     def forward(self):
         self.input_tensor, self.label_tensor = self.data_layer.next()
         activation = self.input_tensor
         for layer in self.layers:
             activation = layer.forward(activation)
-
         return self.loss_layer.forward(activation, self.label_tensor)
 
     def backward(self):
@@ -23,12 +24,12 @@ class NeuralNetwork:
         back_tensor = self.loss_layer.backward(self.label_tensor)
         for layer in reversed(self.layers):
             back_tensor = layer.backward(back_tensor)
-
         return back_tensor
         
     def append_trainable_layer(self, layer):
         loc_optimizer = copy.deepcopy(self.optimizer)
         layer.optimizer = loc_optimizer
+        layer.initialize(self.weights_initializer, self.bias_initializer)
         self.layers.append(layer)
 
     def train(self, iterations):
