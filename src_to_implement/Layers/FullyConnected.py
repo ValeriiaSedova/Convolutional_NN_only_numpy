@@ -22,6 +22,7 @@ class FullyConnected:
             self.weights = self._optimizer.calculate_update(self.weights, self.gradient_weights)        
         return error_tensor_new
 
+    
     @property
     def optimizer(self):
         return self._optimizer
