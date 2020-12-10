@@ -1,7 +1,7 @@
 # Tasks
 
 - [x] Initializers
-- [ ] Optimizers
-- [ ] Flattening
+- [x] Optimizers
+- [x] Flattening
 - [ ] Convolution
 - [ ] Pooling

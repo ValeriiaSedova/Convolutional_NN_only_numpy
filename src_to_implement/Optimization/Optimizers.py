@@ -27,12 +27,14 @@ class Adam:
         self.rho = rho
         self.vk = 0
         self.rk = 0
+        self.k = 1
 
     def calculate_update(self, weight_tensor, gradient_tensor):
         self.vk = self.mu * self.vk + (1 - self.mu) * gradient_tensor
         self.rk = self.rho * self.rk + (1 - self.rho) * gradient_tensor * gradient_tensor
-        vk_hat = self.vk / (1 - self.mu) # ne fuckt, mb stepen' k
-        rk_hat = self.rk / (1 - self.rho)
+        vk_hat = self.vk / (1 - self.mu**self.k)  # ne fackt, mb stepen' k
+        rk_hat = self.rk / (1 - self.rho**self.k)
+        self.k += 1
         return weight_tensor - self.learning_rate * (vk_hat / (np.sqrt(rk_hat) + np.finfo(np.float64).eps))
 
 
