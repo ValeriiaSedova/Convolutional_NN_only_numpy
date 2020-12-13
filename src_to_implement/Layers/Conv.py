@@ -11,20 +11,33 @@ class Conv:
         self.bias = np.random.random(num_kernels)
     
     def forward(self, input_tensor):
-        batch, channels, y, x = input_tensor.shape
-        output_tensor = np.zeros([batch, self.num_kernels, y, x])
-        # if type(self.stride_shape) == tuple:
-        #     cc, cy, cx = self.convolution_shape
+        # print(input_tensor.shape)
+        ONEDIM = len(input_tensor.shape) == 3
+        if ONEDIM:
+            batch, channels, y = input_tensor.shape
+            output_tensor = np.zeros([batch, self.num_kernels, y])            
+        else:
+            batch, channels, y, x = input_tensor.shape
+            output_tensor = np.zeros([batch, self.num_kernels, y, x])
+        if type(self.stride_shape) == tuple:
+            cc, cy, cx = self.convolution_shape
+        else:
+            cc = self.convolution_shape
+            cx = cc; cy = cc;
+
         for element in range(batch):
             for k in range(self.num_kernels):
                 kernel = self.weights[k]
-                loc_maps = np.zeros(channels, y, x)
+                if ONEDIM: loc_maps = np.zeros([channels, y])
+                else: loc_maps = np.zeros([channels, y, x])
 
                 for channel in range(channels):
                     local = input_tensor[element, channel]
-                    loc_maps[channel] = signal.convolve2d(kernel[channel], local, mode = 'same')
+                    if ONEDIM: loc_maps[channel] = local * kernel[channel]
+                    else: loc_maps[channel] = signal.convolve2d(kernel[channel], local, mode = 'same')
                 
-                feature_map = loc_maps.sum(axis = 0) + self.bias[channel]
+                if ONEDIM: feature_map = loc_maps[::cc, ::cy, ::cx].sum(axis = 0) + self.bias[channel]
+                else: feature_map = loc_maps[::cc, ::cy].sum(axis = 0) + self.bias[channel]
                 output_tensor[element, k] = feature_map
         
         return output_tensor
