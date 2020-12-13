@@ -2,3 +2,6 @@
 __pycache__/
 *.json
 .DS_Store
+*.ipynb
+*.json
+*.png
