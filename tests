@@ -1,0 +1,5 @@
+python -m unittest NeuralNetworkTests.TestInitializers
+python -m unittest NeuralNetworkTests.TestOptimizers
+python -m unittest NeuralNetworkTests.TestFlatten
+python -m unittest NeuralNetworkTests.TestConv
+python -m unittest NeuralNetworkTests.TestPooling
