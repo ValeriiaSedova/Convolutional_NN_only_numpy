@@ -3,5 +3,5 @@
 - [x] Initializers
 - [x] Optimizers
 - [x] Flattening
-- [ ] Convolution
+- [x] Convolution
 - [ ] Pooling

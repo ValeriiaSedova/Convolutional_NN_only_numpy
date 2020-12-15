@@ -11,33 +11,22 @@ class Conv:
         self.bias = np.random.random(num_kernels)
     
     def forward(self, input_tensor):
-        self.input_tensor = input_tensor
-        self.input_shape = input_tensor.shape
+        batch_num = input_tensor.shape[0]
+        channel_num = input_tensor.shape[1]
+        ONEDCONV = len(input_tensor.shape) == 3
+        output_tensor = np.zeros([batch_num, self.num_kernels, *input_tensor.shape[2:]])
+        
+        for b in range(batch_num):            # iterate over each tensor in the batch
+            for k in range(self.num_kernels): # iterate over each kernel
+                for c in range(channel_num):  # iterate over each channel to sum them up in the end to get 3D convolution (feature map)
+                    output_tensor[b, k] += signal.correlate(input_tensor[b, c], self.weights[k, c], mode = 'same')
+        
+                output_tensor[b,k] += self.bias[k] # add bias to each feature map
 
-        self.batch_size = input_tensor.shape[0]
-        num_channels = input_tensor.shape[1]
-        summation = np.zeros((self.batch_size, self.num_kernels, *self.input_shape[2:]))
-
-        if len(self.input_tensor.shape) == 3:
-            self.width = input_tensor.shape[2]
-
+        # stride 
+        if ONEDCONV:
+            output_tensor = output_tensor[:, :, ::self.stride_shape[0]]
         else:
+            output_tensor = output_tensor[:, :, ::self.stride_shape[0], ::self.stride_shape[1]]
 
-            self.width = input_tensor.shape[2]
-            self.height = input_tensor.shape[3]
-
-        for i in range(self.batch_size):
-            for j in range(self.num_kernels):
-                for k in range(num_channels):
-                    summation = summation + signal.correlate(input_tensor[i, k, :], self.weights[j, k, :], mode='same')
-
-                summation = summation + self.bias[j]
-
-        if len(self.input_tensor.shape) == 3:
-
-            summation = summation[:, :, 0: self.width: self.stride_shape[0]]
-
-        else:
-            summation = summation[:, :, 0: self.width: self.stride_shape[0], 0: self.height: self.stride_shape[1]]
-
-        return summation
+        return output_tensor
