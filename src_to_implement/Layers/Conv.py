@@ -21,7 +21,6 @@ class Conv:
         if len(self.input_tensor.shape) == 3:
             self.width = input_tensor.shape[2]
 
-
         else:
 
             self.width = input_tensor.shape[2]
