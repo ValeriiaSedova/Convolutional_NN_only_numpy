@@ -36,53 +36,58 @@ class Conv:
         return output_tensor
 
     def backward(self, error_tensor):
-        new_error_tensor = np.zeros(self.output_tensor.shape)
-        batch_num = self.output_tensor.shape[0]
-        channel_num = self.output_tensor.shape[1]
+
+        # Stride
+        b, d, y, x = error_tensor.shape
+        if len(self.convolution_shape) == 1:
+            upsampled = np.zeros([b, d, self.input_tensor.shape[2]])
+            upsampled[:, :, ::self.stride_shape[0]] = error_tensor
+        else:
+            upsampled = np.zeros([b, d, self.input_tensor.shape[2], self.input_tensor.shape[3]])
+            upsampled[:, :, ::self.stride_shape[0], ::self.stride_shape[1]] = error_tensor
+
+        new_error_tensor = np.zeros(self.input_tensor.shape)
+        batch_num = self.input_tensor.shape[0]
+        channel_num = self.input_tensor.shape[1]
         gradient_weights = np.zeros(self.weights.shape)
-        print(self.weights.shape)
+        # print(self.weights.shape)
+        # print(error_tensor.shape)
+
         # Grdaient with respect to the input
+        back_weights = np.swapaxes(self.weights, 0, 1)
+
         for b in range(batch_num):
             for c in range(channel_num):
                 for l in range(self.num_kernels): # maybe we need to flip the channels
-                    if len(self.weights.shape)==3:
-                        new_error_tensor[b,c] += signal.convolve(error_tensor[b,l], self.weights[:,l], mode='same')
-                    else:
-                        new_error_tensor[b,c] += error_tensor[b,l] * self.weights[:,l]
- 
+                    # TODO: arr3[0,:,:] = arr2
+                    try:
+                        new_error_tensor[b,c] += signal.convolve(upsampled[b,l], back_weights[c,l], mode='same')
+                    except:
+                        print(upsampled[b,l].shape, back_weights[c,l].shape)
+                        # w = np.zeros([0,*self.weights[:].shape])
+                        # w[0,:,:] = self.weights[:,c]
+                        # new_error_tensor[b,c] += signal.convolve(error_tensor[b,l], w, mode='same')
 
         # Gradient with respect to the weights
-        S = self.input_tensor.shape[1]
-        for b in range(batch_num):
-            for c in range(channel_num):  # channel = kernel
-                for s in range(S):        
-                    padded_channel = np.pad(self.input_tensor[b,s], self.weights.shape[2]//2)
-                    gradient_weights[c, s] = signal.correlate(padded_channel, error_tensor[b, c], mode='valid')
-        gradient_bias = error_tensor.sum(axis=0,keepdims=True)
-        # Update weights and bias
-        if self._optimizer != None:
-            self.weights = self._optimizer.calculate_update(self.weights, gradient_weights)
+        # S = self.input_tensor.shape[1]
+        # for b in range(batch_num):
+        #     for c in range(channel_num):  # channel = kernel
+        #         for s in range(S):        
+        #             padded_channel = np.pad(self.input_tensor[b,s], self.weights.shape[2]//2)
+        #             gradient_weights[c, s] = signal.correlate(padded_channel, error_tensor[b, c], mode='valid')
+        # gradient_bias = error_tensor.sum(axis=0,keepdims=True)
+        # # Update weights and bias
+        # if self._optimizer != None:
+        #     self.weights = self._optimizer.calculate_update(self.weights, gradient_weights)
 
-        if self._optimizer_b != None:
-            self.bias = self._optimizer_b.calculate_update(self.bias, gradient_bias)
+        # if self._optimizer_b != None:
+        #     self.bias = self._optimizer_b.calculate_update(self.bias, gradient_bias)
 
-        # Stride
-        b, c, y, x = new_error_tensor.shape
-        if len(self.convolution_shape) == 1:
-            upsampled = np.zeros([b, c, y*self.convolution_shape[0]])
-            upsampled[:, :, ::self.stride_shape[0]] = new_error_tensor
-        else:
-            upsampled = np.zeros([b, c, y*self.convolution_shape[0], x*self.convolution_shape[1]])
-            upsampled[:, :, ::self.stride_shape[0], ::self.stride_shape[1]] = new_error_tensor
-
-        return upsampled
+        return new_error_tensor
 
     def initialize(self, weights_initializer, bias_initializer):
-        input_channels  = self.input_tensor.shape[1]
-        output_channels = self.num_kernels
-        kh, kw, _ = self.weights[0].shape
-        fan_in    = [input_channels, kh, kw]
-        fan_out   = [output_channels, kh, kw]
+        fan_in    = np.prod(self.convolution_shape)
+        fan_out   = np.prod(self.convolution_shape[1:]) * self.num_kernels
         self.weights = weights_initializer.initialize(self.weights.shape, fan_in, fan_out)
         self.bias = bias_initializer.initialize(self.bias.shape, fan_in, fan_out)
 
