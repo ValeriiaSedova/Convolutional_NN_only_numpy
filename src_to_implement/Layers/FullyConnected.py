@@ -22,9 +22,13 @@ class FullyConnected:
             self.weights = self._optimizer.calculate_update(self.weights, self.gradient_weights)        
         return error_tensor_new
 
-    def initialize(weights_initializer, bias_initializer):
-        self.weights = weights_initializer
-        self.weights = np.concatenate((self.weights, bias_initializer), axis = 0)
+    def initialize(self, weights_initializer, bias_initializer):
+        fan_in  = np.prod(self.input_size)
+        fan_out = np.prod(self.output_size)
+        self.weights[:-1,:] = weights_initializer.initialize(self.weights[:-1,:].shape, fan_in, fan_out)
+        self.weights[-1, :] = bias_initializer.initialize(self.weights[-1].shape,fan_in, fan_out)
+        # self.weights = np.concatenate((self.weights, bias), axis = 0)
+
 
     
     @property

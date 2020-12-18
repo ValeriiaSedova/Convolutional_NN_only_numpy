@@ -36,58 +36,61 @@ class Conv:
         return output_tensor
 
     def backward(self, error_tensor):
-        #backward pass the error
-        output = np.zeros(self.input_tensor.shape)
-        gradtensor = np.zeros(self.weights.shape)
+        new_error_tensor = np.zeros(self.input_tensor.shape)
+        grad_weights = np.zeros(self.weights.shape)
         self.gradient_tensor = np.zeros_like(self.weights)
         self.grad_bias = np.zeros_like(self.bias)
-        new_error_tensor = np.zeros((error_tensor.shape[0], self.num_kernels, *self.input_tensor.shape[2:] ))
 
+        batch_num = error_tensor.shape[0]
+        channels = self.weights.shape[1]
 
-
-        #check the change of weight tensor before you convolve
-        for batch in range(error_tensor.shape[0]):
-            #strides
+        for b in range(batch_num):
+            
+            # Stride
             error_tensor_strided = np.zeros((self.num_kernels, *self.input_tensor.shape[2:] ))
-            for kernels in range(error_tensor.shape[1]):
-                errorimage = error_tensor[batch, kernels, :]
-                if len(error_tensor.shape)==4:
-                    error_tensor_strided[kernels,:][np.s_[::self.stride_shape[0]], :][:, np.s_[::self.stride_shape[1]]] = errorimage
-                else:
-                    error_tensor_strided[kernels,:][np.s_[::self.stride_shape[0]]] = errorimage
+            ERR2D = len(error_tensor.shape)==4
+            
+            for k in range(error_tensor.shape[1]):
+                errorimage = error_tensor[b, k, :]
+                if ERR2D: error_tensor_strided[k,::self.stride_shape[0], ::self.stride_shape[1]] = errorimage
+                else: error_tensor_strided[k,::self.stride_shape[0]] = errorimage
 
-            #output
-            for channels in range(self.weights.shape[1]):
-                err = signal.convolve(error_tensor_strided, np.flip(self.weights, 0)[:,channels,:], mode='same')
+            # Gradient with respect to the input
+            for c in range(channels):
+                err = signal.convolve(error_tensor_strided, np.flip(self.weights, 0)[:,c,:], mode='same')
                 midchannel = int(err.shape[0] / 2)
                 op = err[midchannel,:]
-                output[batch,channels,:] = op    #numkernel and numchannel inetrchange here numkernel is one dim depth
+                new_error_tensor[b,c,:] = op   
 
-            for kernels in range(error_tensor_strided.shape[0]):
-                self.grad_bias[kernels] += np.sum(error_tensor[batch, kernels, :]) #bias is sum of error tensors
+            # Gradient with respect to the weights
+            for k in range(self.num_kernels):
+                self.grad_bias[k] += np.sum(error_tensor[b, k, :]) 
 
-                for channels in range(self.input_tensor.shape[1]):
-                    inputimg = self.input_tensor[batch,channels,:]
-                    if len(error_tensor.shape)==4:
+                for c in range(self.input_tensor.shape[1]):
+                    inputimg = self.input_tensor[b,c,:]
+
+                    if ERR2D:
                         padx = self.convolution_shape[1]/2
                         pady = self.convolution_shape[2]/2
-                        padimg = np.pad(inputimg, ((int(np.floor(padx)),int(np.floor(padx-0.5))),(int(np.floor(pady)),int(np.floor(pady-0.5)))), mode="constant")
+                        px = (int(np.floor(padx)),int(np.floor(padx-0.5)))
+                        py = (int(np.floor(pady)),int(np.floor(pady-0.5)))
+                        padimg = np.pad(inputimg, (px,py))
                     else:
                         padx = self.convolution_shape[1]/2
-                        padimg = np.pad(inputimg, ((int(np.floor(padx)),int(np.floor(padx-0.5)))), mode="constant")
-                    gradtensor[kernels,channels,:] = signal.correlate(padimg, error_tensor_strided[kernels,:], mode="valid")
+                        px = (int(np.floor(padx)),int(np.floor(padx-0.5)))
+                        padimg = np.pad(inputimg, px)
 
-            #print(error_tensor_strided)
-            self.gradient_tensor += gradtensor
+                    grad_weights[k,c,:] = signal.correlate(padimg, error_tensor_strided[k,:], mode="valid")
 
+            self.gradient_tensor += grad_weights
 
-        #update weights
+        # Update weights
         if self._optimizer is not None:
             self.weights = self._optimizer.calculate_update(self.weights, self.gradient_tensor)
         if self._optimizer_b is not None:
             self.bias = self._optimizer_b.calculate_update(self.bias, self.grad_bias)
 
-        return output
+        return new_error_tensor
 
     def initialize(self, weights_initializer, bias_initializer):
         fan_in    = np.prod(self.convolution_shape)
