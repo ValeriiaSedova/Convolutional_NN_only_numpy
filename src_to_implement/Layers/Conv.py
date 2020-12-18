@@ -36,54 +36,58 @@ class Conv:
         return output_tensor
 
     def backward(self, error_tensor):
+        #backward pass the error
+        output = np.zeros(self.input_tensor.shape)
+        gradtensor = np.zeros(self.weights.shape)
+        self.gradient_tensor = np.zeros_like(self.weights)
+        self.grad_bias = np.zeros_like(self.bias)
+        new_error_tensor = np.zeros((error_tensor.shape[0], self.num_kernels, *self.input_tensor.shape[2:] ))
 
-        # Stride
-        b, d, y, x = error_tensor.shape
-        if len(self.convolution_shape) == 1:
-            upsampled = np.zeros([b, d, self.input_tensor.shape[2]])
-            upsampled[:, :, ::self.stride_shape[0]] = error_tensor
-        else:
-            upsampled = np.zeros([b, d, self.input_tensor.shape[2], self.input_tensor.shape[3]])
-            upsampled[:, :, ::self.stride_shape[0], ::self.stride_shape[1]] = error_tensor
 
-        new_error_tensor = np.zeros(self.input_tensor.shape)
-        batch_num = self.input_tensor.shape[0]
-        channel_num = self.input_tensor.shape[1]
-        gradient_weights = np.zeros(self.weights.shape)
-        # print(self.weights.shape)
-        # print(error_tensor.shape)
 
-        # Grdaient with respect to the input
-        back_weights = np.swapaxes(self.weights, 0, 1)
+        #check the change of weight tensor before you convolve
+        for batch in range(error_tensor.shape[0]):
+            #strides
+            error_tensor_strided = np.zeros((self.num_kernels, *self.input_tensor.shape[2:] ))
+            for kernels in range(error_tensor.shape[1]):
+                errorimage = error_tensor[batch, kernels, :]
+                if len(error_tensor.shape)==4:
+                    error_tensor_strided[kernels,:][np.s_[::self.stride_shape[0]], :][:, np.s_[::self.stride_shape[1]]] = errorimage
+                else:
+                    error_tensor_strided[kernels,:][np.s_[::self.stride_shape[0]]] = errorimage
 
-        for b in range(batch_num):
-            for c in range(channel_num):
-                for l in range(self.num_kernels): # maybe we need to flip the channels
-                    # TODO: arr3[0,:,:] = arr2
-                    try:
-                        new_error_tensor[b,c] += signal.convolve(upsampled[b,l], back_weights[c,l], mode='same')
-                    except:
-                        print(upsampled[b,l].shape, back_weights[c,l].shape)
-                        # w = np.zeros([0,*self.weights[:].shape])
-                        # w[0,:,:] = self.weights[:,c]
-                        # new_error_tensor[b,c] += signal.convolve(error_tensor[b,l], w, mode='same')
+            #output
+            for channels in range(self.weights.shape[1]):
+                err = signal.convolve(error_tensor_strided, np.flip(self.weights, 0)[:,channels,:], mode='same')
+                midchannel = int(err.shape[0] / 2)
+                op = err[midchannel,:]
+                output[batch,channels,:] = op    #numkernel and numchannel inetrchange here numkernel is one dim depth
 
-        # Gradient with respect to the weights
-        # S = self.input_tensor.shape[1]
-        # for b in range(batch_num):
-        #     for c in range(channel_num):  # channel = kernel
-        #         for s in range(S):        
-        #             padded_channel = np.pad(self.input_tensor[b,s], self.weights.shape[2]//2)
-        #             gradient_weights[c, s] = signal.correlate(padded_channel, error_tensor[b, c], mode='valid')
-        # gradient_bias = error_tensor.sum(axis=0,keepdims=True)
-        # # Update weights and bias
-        # if self._optimizer != None:
-        #     self.weights = self._optimizer.calculate_update(self.weights, gradient_weights)
+            for kernels in range(error_tensor_strided.shape[0]):
+                self.grad_bias[kernels] += np.sum(error_tensor[batch, kernels, :]) #bias is sum of error tensors
 
-        # if self._optimizer_b != None:
-        #     self.bias = self._optimizer_b.calculate_update(self.bias, gradient_bias)
+                for channels in range(self.input_tensor.shape[1]):
+                    inputimg = self.input_tensor[batch,channels,:]
+                    if len(error_tensor.shape)==4:
+                        padx = self.convolution_shape[1]/2
+                        pady = self.convolution_shape[2]/2
+                        padimg = np.pad(inputimg, ((int(np.floor(padx)),int(np.floor(padx-0.5))),(int(np.floor(pady)),int(np.floor(pady-0.5)))), mode="constant")
+                    else:
+                        padx = self.convolution_shape[1]/2
+                        padimg = np.pad(inputimg, ((int(np.floor(padx)),int(np.floor(padx-0.5)))), mode="constant")
+                    gradtensor[kernels,channels,:] = signal.correlate(padimg, error_tensor_strided[kernels,:], mode="valid")
 
-        return new_error_tensor
+            #print(error_tensor_strided)
+            self.gradient_tensor += gradtensor
+
+
+        #update weights
+        if self._optimizer is not None:
+            self.weights = self._optimizer.calculate_update(self.weights, self.gradient_tensor)
+        if self._optimizer_b is not None:
+            self.bias = self._optimizer_b.calculate_update(self.bias, self.grad_bias)
+
+        return output
 
     def initialize(self, weights_initializer, bias_initializer):
         fan_in    = np.prod(self.convolution_shape)
@@ -107,3 +111,10 @@ class Conv:
     def optimizer_b(self, optimizer_b):
         self._optimizer_b = optimizer_b
 
+    @property
+    def gradient_weights(self):
+        return self.gradient_tensor
+
+    @property
+    def gradient_bias(self):
+        return self.grad_bias
